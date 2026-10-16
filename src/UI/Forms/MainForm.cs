@@ -233,6 +233,7 @@ namespace RazerBatteryTray
         private System.Windows.Forms.Timer gameMonitorTimer;
 
         private ModernCheckBox chkAutoGameRate;
+        private ModernCheckBox chkHoldGameUntilExit;
         private ModernButton btnManageGames;
         private Label lblLiveRateBadge;
         private Label lblGameRateTitle;
@@ -244,6 +245,8 @@ namespace RazerBatteryTray
 
         private List<string> monitoredGameProcesses = new List<string> { "cs2.exe", "b1-win64-shipping.exe", "valorant-win64-shipping.exe" };
         private bool fallbackFullscreenEnabled = false;
+        private bool holdGameRateUntilExit = false;
+        private string activeGameProcessName = "";
         private System.Windows.Forms.Timer cardAnimTimer = null;
         private int animTargetCardH = 0;
 
@@ -827,6 +830,9 @@ namespace RazerBatteryTray
                         var fallbackVal = key.GetValue("FallbackFullscreenEnabled");
                         if (fallbackVal != null) fallbackFullscreenEnabled = (int)fallbackVal == 1;
 
+                        var holdRateVal = key.GetValue("HoldGameRateUntilExit");
+                        if (holdRateVal != null) holdGameRateUntilExit = (int)holdRateVal == 1;
+
                         var customDpiVal = key.GetValue("CustomDpiStages") as string;
                         if (!string.IsNullOrEmpty(customDpiVal))
                         {
@@ -902,6 +908,7 @@ namespace RazerBatteryTray
                 if (btnInt5m != null) btnInt5m.Selected = (userSelectedInterval == 300000);
 
                 if (chkAutoGameRate != null) chkAutoGameRate.Checked = autoGameRateEnabled;
+                if (chkHoldGameUntilExit != null) chkHoldGameUntilExit.Checked = holdGameRateUntilExit;
                 if (autoGameRateToggleItem != null) autoGameRateToggleItem.Checked = autoGameRateEnabled;
                 if (chkNotifyOsd != null) chkNotifyOsd.Checked = gameRateNotifyOsd;
                 if (chkNotifyToast != null) chkNotifyToast.Checked = gameRateNotifyToast;
@@ -944,6 +951,7 @@ namespace RazerBatteryTray
                             key.SetValue("MonitoredGameProcesses", procListStr);
                         }
                         key.SetValue("FallbackFullscreenEnabled", fallbackFullscreenEnabled ? 1 : 0);
+                        key.SetValue("HoldGameRateUntilExit", holdGameRateUntilExit ? 1 : 0);
                         if (savedWindowX > -3000 && savedWindowY > -3000)
                         {
                             key.SetValue("WindowX", savedWindowX);

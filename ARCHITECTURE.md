@@ -106,7 +106,7 @@ D:\FerrisPulse · 灵脉\
 | **托盘图标丢失 / Explorer 重启自愈** | `src/UI/Forms/MainForm.Events.cs` | 监听 `WM_TASKBARCREATED` 并自动恢复 |
 | **雷蛇 DPI 档位 / 8K 回报率** | `src/Hardware/RazerDeviceHelper.cs` | 雷蛇私有 HID 报文与固化 Flash 写入 |
 | **多设备优先级拖拽与首选设备** | `src/Hardware/DeviceManager.cs` / `DevicePriorityForm.cs` | 外设优先级权重与展示顺序 |
-| **全屏游戏自动切换回报率** | `src/Services/GameDetector.cs` / `MainForm.Hardware.cs` | 前台独占全屏与游戏进程监听 |
+| **全屏游戏自动切换回报率** | `src/Services/GameDetector.cs` / `MainForm.Hardware.cs` | 前台独占全屏与游戏进程监听；可勾选“游戏退出前保持电竞回报率”（切出焦点不回落，直到游戏进程退出） |
 | **游戏切换提示音 (PCM 双音)** | `src/Services/ChimeSynthesizer.cs` | 44.1kHz 纯正弦波双音合成 |
 | **托盘图标样式与动态设备右键菜单** | `src/UI/Forms/MainForm.Tray.cs` | 托盘样式渲染 (0: 现代胶囊电池, 1: 醒目数字能量表, 2: 极简纯数字) 与全新 Fluent 断联图标、多外设快捷切换 |
 | **全键无冲测速仪 / 键盘按键监控** | `src/UI/Forms/KeyRolloverSpeedForm.cs` | 底层键盘钩子与高帧率矩阵点亮 |

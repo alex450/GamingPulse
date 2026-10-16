@@ -2,7 +2,7 @@
 // 1. 目标平台与编译规范：严格维持 C# 5.0 语法标准与 .NET Framework 4.0 兼容性。严禁引入任何第三方包或依赖。
 // 2. 编码规范：所有文件严格保存为 UTF-8 带签名（BOM）格式，防止中文字符乱码。
 // 3. 架构规范：本文件属于 MainForm 的分部类 (partial class) 之一。修改时请保持职责清晰，任何新增方法或逻辑请同步维护 ARCHITECTURE.md。
-// 模块描述: MainForm 硬件通信调度、后台状态轮询、DPI实时监听、游戏全屏感知与界面状态同步
+// 模块描述: MainForm 硬件通信调度、后台状态轮询、DPI实时监听、游戏全屏感知与界面状态同步（含“游戏退出前保持电竞回报率”锁定逻辑）
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -480,6 +480,45 @@ namespace RazerBatteryTray
             return false;
         }
 
+        private string NormalizeProcessName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "";
+            string normalized = name.Trim().ToLowerInvariant();
+            if (!normalized.EndsWith(".exe")) normalized += ".exe";
+            return normalized;
+        }
+
+        // 触发本次电竞回报率的游戏进程是否仍在运行（供“游戏退出前保持电竞回报率”选项使用）
+        private bool IsActiveGameProcessRunning()
+        {
+            string target = activeGameProcessName;
+            if (string.IsNullOrEmpty(target)) return false;
+
+            bool found = false;
+            try
+            {
+                Process[] all = Process.GetProcesses();
+                for (int i = 0; i < all.Length; i++)
+                {
+                    Process p = all[i];
+                    try
+                    {
+                        if (!found && string.Equals(NormalizeProcessName(p.ProcessName), target, StringComparison.OrdinalIgnoreCase))
+                        {
+                            found = true;
+                        }
+                    }
+                    catch { }
+                    finally
+                    {
+                        p.Dispose();
+                    }
+                }
+            }
+            catch { }
+            return found;
+        }
+
         private void StartGameMonitor()
         {
             if (gameMonitorTimer != null) return;
@@ -492,6 +531,7 @@ namespace RazerBatteryTray
                 if (curDev.Brand != "Razer" && curDev.Brand != "Rapoo") return;
 
                 string procTitle = "";
+                string hitProcess = "";
                 bool isGame = false;
 
                 // Priority 1: Check foreground window against user's monitored game processes
@@ -510,6 +550,7 @@ namespace RazerBatteryTray
                                 if (ContainsGameProcess(pName))
                                 {
                                     isGame = true;
+                                    hitProcess = pName;
                                     procTitle = proc.MainWindowTitle;
                                     if (string.IsNullOrEmpty(procTitle)) procTitle = pName;
                                 }
@@ -526,6 +567,7 @@ namespace RazerBatteryTray
                     if (GameDetector.IsGameRunning(out fsTitle))
                     {
                         isGame = true;
+                        hitProcess = fsTitle;
                         procTitle = fsTitle;
                     }
                 }
@@ -534,6 +576,8 @@ namespace RazerBatteryTray
                 {
                     outOfGameTickCount = 0;
                     inGameTickCount++;
+                    string hitName = NormalizeProcessName(hitProcess);
+                    if (!string.IsNullOrEmpty(hitName)) activeGameProcessName = hitName;
                     if (inGameTickCount >= 2 && !isGamingActive)
                     {
                         isGamingActive = true;
@@ -542,12 +586,23 @@ namespace RazerBatteryTray
                 }
                 else
                 {
-                    inGameTickCount = 0;
-                    outOfGameTickCount++;
-                    if (outOfGameTickCount >= 2 && isGamingActive)
+                    // 选项开启时：只要触发本次电竞回报率的游戏进程仍在运行，
+                    // 单纯的焦点切换（切到桌面或其它程序）不再回落，直到游戏真正退出。
+                    if (holdGameRateUntilExit && isGamingActive && IsActiveGameProcessRunning())
                     {
-                        isGamingActive = false;
-                        RestoreDesktopPollingRate();
+                        inGameTickCount = 0;
+                        outOfGameTickCount = 0;
+                    }
+                    else
+                    {
+                        inGameTickCount = 0;
+                        outOfGameTickCount++;
+                        if (outOfGameTickCount >= 2 && isGamingActive)
+                        {
+                            isGamingActive = false;
+                            activeGameProcessName = "";
+                            RestoreDesktopPollingRate();
+                        }
                     }
                 }
             };
@@ -1788,7 +1843,7 @@ namespace RazerBatteryTray
                 if (lblDpiTitle != null) lblDpiTitle.Visible = true;
                 if (lblRateTitle != null) lblRateTitle.Visible = true;
 
-                int targetPerfH = autoGameRateEnabled ? (int)(208 * dpiScale) : (int)(142 * dpiScale);
+                int targetPerfH = autoGameRateEnabled ? (int)(236 * dpiScale) : (int)(142 * dpiScale);
                 AdjustPerformanceCardHeight(targetPerfH);
 
                 if (chkAutoGameRate != null)
@@ -1799,6 +1854,11 @@ namespace RazerBatteryTray
                 if (btnManageGames != null)
                 {
                     btnManageGames.Visible = autoGameRateEnabled;
+                }
+                if (chkHoldGameUntilExit != null)
+                {
+                    chkHoldGameUntilExit.Visible = autoGameRateEnabled;
+                    chkHoldGameUntilExit.Checked = holdGameRateUntilExit;
                 }
                 if (lblGameRateTitle != null) lblGameRateTitle.Visible = autoGameRateEnabled;
                 if (btnGameRates != null)

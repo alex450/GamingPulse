@@ -337,8 +337,22 @@ namespace RazerBatteryTray
             btnManageGames.Click += (s, e) => OpenGameProcessManager();
             cardPerformance.Controls.Add(btnManageGames);
 
-            // Row 4: 电竞回报率选择
-            int gameRateY = (int)(138 * dpiScale);
+            // Row 4: 游戏退出前保持电竞回报率 (全屏游戏自动切换回报率的子选项)
+            int holdRowY = (int)(138 * dpiScale);
+            chkHoldGameUntilExit = new ModernCheckBox();
+            chkHoldGameUntilExit.Text = "游戏退出前保持电竞回报率";
+            chkHoldGameUntilExit.Font = new Font("Microsoft YaHei UI", 8.2F, FontStyle.Regular, GraphicsUnit.Point);
+            chkHoldGameUntilExit.ForeColor = Color.FromArgb(170, 180, 200);
+            chkHoldGameUntilExit.Location = new Point(cPad, holdRowY);
+            chkHoldGameUntilExit.Size = new Size(secW, (int)(20 * dpiScale));
+            chkHoldGameUntilExit.Visible = false;
+            chkHoldGameUntilExit.CheckedChanged += (s, e) => {
+                if (!isUpdatingUI) { holdGameRateUntilExit = chkHoldGameUntilExit.Checked; SaveConfig(); }
+            };
+            cardPerformance.Controls.Add(chkHoldGameUntilExit);
+
+            // Row 5: 电竞回报率选择
+            int gameRateY = (int)(166 * dpiScale);
             lblGameRateTitle = new Label();
             lblGameRateTitle.Text = "电竞回报率";
             lblGameRateTitle.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -365,8 +379,8 @@ namespace RazerBatteryTray
                 btnGameRates[i] = btn;
             }
 
-            // Row 5: 提醒方式设置
-            int gameNotifY = (int)(170 * dpiScale);
+            // Row 6: 提醒方式设置
+            int gameNotifY = (int)(198 * dpiScale);
             lblNotifyModeTitle = new Label();
             lblNotifyModeTitle.Text = "切换提醒:";
             lblNotifyModeTitle.Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Regular, GraphicsUnit.Point);
@@ -1313,6 +1327,7 @@ namespace RazerBatteryTray
                     if (btnGameRates[i] != null) btnGameRates[i].Visible = effective;
                 }
             }
+            if (chkHoldGameUntilExit != null) chkHoldGameUntilExit.Visible = effective;
             if (lblNotifyModeTitle != null) lblNotifyModeTitle.Visible = effective;
             if (chkNotifyOsd != null) chkNotifyOsd.Visible = effective;
             if (chkNotifyToast != null) chkNotifyToast.Visible = effective;
@@ -1365,7 +1380,7 @@ namespace RazerBatteryTray
             var dev = selectedDevice;
             if (dev != null && (dev.Brand == "Razer" || dev.Brand == "Rapoo"))
             {
-                int targetH = autoGameRateEnabled ? (int)(208 * dpiScale) : (int)(142 * dpiScale);
+                int targetH = autoGameRateEnabled ? (int)(236 * dpiScale) : (int)(142 * dpiScale);
                 AnimatePerformanceCardHeight(targetH);
             }
         }
