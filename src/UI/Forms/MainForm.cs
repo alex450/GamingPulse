@@ -248,7 +248,10 @@ namespace RazerBatteryTray
         private bool holdGameRateUntilExit = false;
         private string activeGameProcessName = "";
         private System.Windows.Forms.Timer cardAnimTimer = null;
+        private int animStartCardH = 0;
         private int animTargetCardH = 0;
+        private DateTime animStartTime = DateTime.MinValue;
+        private const int ANIM_DURATION_MS = 160;
 
         private ToolStripMenuItem autoGameRateMenu;
         private ToolStripMenuItem autoGameRateToggleItem;
@@ -352,6 +355,16 @@ namespace RazerBatteryTray
         private string lastBalloonTitle = "";
         private ModernDeviceSwitcherFlyout switcherFlyout = null;
         private DateTime lastFlyoutCloseTime = DateTime.MinValue;
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.Style |= 0x02000000; // WS_CLIPCHILDREN: 杜绝主窗体背景绘制涂抹子控件
+                return cp;
+            }
+        }
 
         public MainForm(bool isAutoStart = false)
         {

@@ -1137,24 +1137,43 @@ namespace RazerBatteryTray
             if (cardPerformance == null || cardSettings == null || btnRefresh == null || btnHideToTray == null) return;
             if (cardPerformance.Height == newCard2H) return;
 
-            cardPerformance.Height = newCard2H;
-            int padX = (int)(18 * dpiScale);
-            int baseW = (int)(470 * dpiScale);
-            int cardW = baseW - (padX * 2);
+            int oldCard3Y = cardSettings.Top;
+            int oldBtnBottom = btnRefresh.Bottom;
 
-            int card3Y = cardPerformance.Bottom + (int)(12 * dpiScale);
-            cardSettings.Location = new Point(padX, card3Y);
+            this.SuspendLayout();
+            try
+            {
+                cardPerformance.Height = newCard2H;
+                int padX = (int)(18 * dpiScale);
+                int baseW = (int)(470 * dpiScale);
+                int cardW = baseW - (padX * 2);
 
-            int card4Y = cardSettings.Bottom + (int)(14 * dpiScale);
-            int btnH = (int)(38 * dpiScale);
-            int btnGap = (int)(14 * dpiScale);
-            int btnW = (cardW - btnGap) / 2;
+                int card3Y = cardPerformance.Bottom + (int)(12 * dpiScale);
+                cardSettings.Location = new Point(padX, card3Y);
 
-            btnRefresh.Location = new Point(padX, card4Y);
-            btnHideToTray.Location = new Point(padX + btnW + btnGap, card4Y);
+                int card4Y = cardSettings.Bottom + (int)(14 * dpiScale);
+                int btnH = (int)(38 * dpiScale);
+                int btnGap = (int)(14 * dpiScale);
+                int btnW = (cardW - btnGap) / 2;
 
-            int clientH = card4Y + btnH + (int)(16 * dpiScale);
-            this.ClientSize = new Size(baseW, clientH);
+                btnRefresh.Location = new Point(padX, card4Y);
+                btnHideToTray.Location = new Point(padX + btnW + btnGap, card4Y);
+
+                int clientH = card4Y + btnH + (int)(16 * dpiScale);
+                this.ClientSize = new Size(baseW, clientH);
+            }
+            finally
+            {
+                this.ResumeLayout(false);
+            }
+
+            int minY = Math.Min(oldCard3Y, cardSettings.Top);
+            int maxY = Math.Max(oldBtnBottom, btnRefresh.Bottom);
+            int spanH = maxY - minY + (int)(16 * dpiScale);
+            if (spanH > 0)
+            {
+                this.Invalidate(new Rectangle(0, minY, this.ClientSize.Width, spanH), false);
+            }
         }
 
         private void UpdateGameRateButtonSelection(int hz)
@@ -1338,40 +1357,67 @@ namespace RazerBatteryTray
         {
             if (cardPerformance == null) return;
             animTargetCardH = targetH;
-            if (cardPerformance.Height == targetH)
+
+            // 1. 若窗体未显示或处于最小化状态，直接原子同步重排，不消耗计时器
+            if (!this.Visible || this.WindowState == FormWindowState.Minimized)
             {
-                if (!autoGameRateEnabled) SetGameRateControlsVisibility(false);
+                if (cardAnimTimer != null && cardAnimTimer.Enabled) cardAnimTimer.Stop();
+                SetGameRateControlsVisibility(autoGameRateEnabled);
+                AdjustPerformanceCardHeight(targetH);
                 return;
             }
 
-            if (cardAnimTimer == null)
+            // 2. 若高度已然吻合，直接校准可见性并退出
+            if (cardPerformance.Height == targetH)
             {
-                cardAnimTimer = new System.Windows.Forms.Timer();
-                cardAnimTimer.Interval = 15; // ~66 FPS
-                cardAnimTimer.Tick += (s, e) => {
-                    if (cardPerformance == null) { cardAnimTimer.Stop(); return; }
-                    int curH = cardPerformance.Height;
-                    int diff = animTargetCardH - curH;
-                    if (Math.Abs(diff) <= 2)
-                    {
-                        AdjustPerformanceCardHeight(animTargetCardH);
-                        cardAnimTimer.Stop();
-                        if (!autoGameRateEnabled)
-                        {
-                            SetGameRateControlsVisibility(false);
-                        }
-                        return;
-                    }
-                    int step = (int)Math.Round(diff * 0.35);
-                    if (step == 0) step = diff > 0 ? 1 : -1;
-                    AdjustPerformanceCardHeight(curH + step);
-                };
+                if (cardAnimTimer != null && cardAnimTimer.Enabled) cardAnimTimer.Stop();
+                SetGameRateControlsVisibility(autoGameRateEnabled);
+                return;
             }
 
+            // 3. 卷帘门遮罩式动效生命周期：
+            // 展开开始时立即点亮子控件，配合卡片容器硬件裁剪 (WS_CLIPCHILDREN) 像卷帘门一样随着底边拉伸自然向下露出；
+            // 收回过程中保持子控件可见，随着底边向上收拢自然被裁切遮盖，待完全缩入卡片底边后才彻底设为 false。
             if (autoGameRateEnabled)
             {
                 SetGameRateControlsVisibility(true);
             }
+
+            animStartCardH = cardPerformance.Height;
+            animStartTime = DateTime.UtcNow;
+
+            if (cardAnimTimer == null)
+            {
+                cardAnimTimer = new System.Windows.Forms.Timer();
+                cardAnimTimer.Interval = 15; // 约 66 FPS
+                cardAnimTimer.Tick += (s, e) => {
+                    if (cardPerformance == null) { cardAnimTimer.Stop(); return; }
+
+                    double elapsed = (DateTime.UtcNow - animStartTime).TotalMilliseconds;
+                    float progress = (float)(elapsed / ANIM_DURATION_MS);
+
+                    if (progress >= 1.0f)
+                    {
+                        cardAnimTimer.Stop();
+                        AdjustPerformanceCardHeight(animTargetCardH);
+
+                        // 收起彻底完成时关闭可见性，避免折叠状态下的无效命中或焦点捕获
+                        SetGameRateControlsVisibility(autoGameRateEnabled);
+
+                        // 终点全量深度刷新：彻底抹除所有历史脏矩形残留
+                        this.Invalidate(true);
+                        this.Update();
+                        return;
+                    }
+
+                    // Cubic Ease-Out 平滑减速缓动曲线: 启程轻快、收尾极度平滑
+                    float rem = 1.0f - progress;
+                    float ease = 1.0f - (rem * rem * rem);
+                    int nextH = (int)Math.Round(animStartCardH + (animTargetCardH - animStartCardH) * ease);
+                    AdjustPerformanceCardHeight(nextH);
+                };
+            }
+
             cardAnimTimer.Start();
         }
 
